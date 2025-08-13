@@ -17,7 +17,8 @@ export default function App() {
         setLoadingMaps(true)
         try {
             const res = await API.listMaps()
-            setMaps(res.mapas || [])
+            const list = Array.isArray(res) ? res : res?.mapas
+            setMaps(Array.isArray(list) ? list : [])
         } catch (e) {
             setStatus(`Erro: ${e.message}`)
         } finally {

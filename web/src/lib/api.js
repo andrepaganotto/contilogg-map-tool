@@ -1,4 +1,9 @@
-const BASE = import.meta.env.VITE_API_BASE || window.location.origin
+// Base da API.
+// Em produção usamos a própria origem (servida pelo backend).
+// Em desenvolvimento apontamos para o servidor local na porta 3000
+// para evitar erros de CORS quando o Vite roda em 5173.
+const DEFAULT_BASE = import.meta.env.DEV ? 'http://localhost:3000' : window.location.origin
+const BASE = import.meta.env.VITE_API_BASE || DEFAULT_BASE
 
 async function json(method, path, body) {
     const res = await fetch(`${BASE}${path}`, {
