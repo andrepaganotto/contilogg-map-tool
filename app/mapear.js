@@ -1,6 +1,6 @@
 // mapear.js
-const fs = require('fs');
-const { chromium } = require('playwright');
+import fs from 'fs';
+import { chromium } from 'playwright';
 
 /* ========================   ESTADO INTERNO   ======================== */
 let browser = null;
@@ -504,4 +504,4 @@ async function stop() {
 }
 
 /* =========================  EXPORTA DUAS FUNÇÕES  ========================= */
-module.exports = { start, stop };
+export default { start, stop };

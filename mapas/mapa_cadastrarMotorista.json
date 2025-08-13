@@ -86,7 +86,7 @@
       "key": "cidade_nasc",
       "meta": {
         "role": null,
-        "networkTriggered": false,
+        "networkTriggered": true,
         "text": null
       }
     },
@@ -265,7 +265,7 @@
       "key": "end_cidade",
       "meta": {
         "role": null,
-        "networkTriggered": false,
+        "networkTriggered": true,
         "text": null
       }
     },
@@ -541,7 +541,7 @@
       "key": "cidade_cnh",
       "meta": {
         "role": null,
-        "networkTriggered": false,
+        "networkTriggered": true,
         "text": null
       }
     },
@@ -603,6 +603,28 @@
       }
     },
     {
+      "action": "click",
+      "selector": "[name=\"formmotorista:Motorista_funcionario\"]",
+      "meta": {
+        "role": null,
+        "networkTriggered": true,
+        "text": "Sim\n\tNão"
+      }
+    },
+    {
+      "action": "select",
+      "selector": "[name=\"formmotorista:Motorista_funcionario\"]",
+      "key": "funcionario",
+      "meta": {
+        "role": null,
+        "networkTriggered": false,
+        "options": [
+          "Sim",
+          "Não"
+        ]
+      }
+    },
+    {
       "action": "select",
       "selector": "[name=\"formmotorista:Motorista_filial\"]",
       "key": "filial",
@@ -612,6 +634,31 @@
         "options": [
           "-",
           "1 - ON TRANSPORTES RODOVIÁRIO LTDA (SORRISO/MT)"
+        ]
+      }
+    },
+    {
+      "action": "click",
+      "selector": "[name=\"formmotorista:Motorista_unidadeEmbarque\"]",
+      "meta": {
+        "role": null,
+        "networkTriggered": true,
+        "text": "-\n\t1 - MATRIZ (SORRISO/MT)\n\t2 - SORRISO MT (SORRISO/MT)\n\t3 - LUCAS DO RIO VERDE MT (LUCAS DO RIO VERDE/MT)\n\t4 - SEMENTES"
+      }
+    },
+    {
+      "action": "select",
+      "selector": "[name=\"formmotorista:Motorista_unidadeEmbarque\"]",
+      "key": "unidade_embarque",
+      "meta": {
+        "role": null,
+        "networkTriggered": false,
+        "options": [
+          "-",
+          "1 - MATRIZ (SORRISO/MT)",
+          "2 - SORRISO MT (SORRISO/MT)",
+          "3 - LUCAS DO RIO VERDE MT (LUCAS DO RIO VERDE/MT)",
+          "4 - SEMENTES (LUCAS DO RIO VERDE/MT)"
         ]
       }
     },
@@ -638,7 +685,7 @@
     {
       "action": "upload",
       "selector": "#formmotorista\\:tableFotos\\:1\\:selecionarFoto > div.rf-fu-hdr:nth-child(1) > span.rf-fu-btns-lft:nth-child(1) > span.rf-fu-btn-add:nth-child(1) > span.rf-fu-btn-cnt-add:nth-child(1) > span.rf-fu-inp-cntr:nth-child(1) > input.rf-fu-inp:nth-child(1)",
-      "key": "foto_qrcode",
+      "key": "foto_motorista_cnh",
       "meta": {
         "role": null,
         "networkTriggered": true,
@@ -649,7 +696,7 @@
     {
       "action": "upload",
       "selector": "#formmotorista\\:tableFotos\\:2\\:selecionarFoto > div.rf-fu-hdr:nth-child(1) > span.rf-fu-btns-lft:nth-child(1) > span.rf-fu-btn-add:nth-child(1) > span.rf-fu-btn-cnt-add:nth-child(1) > span.rf-fu-inp-cntr:nth-child(1) > input.rf-fu-inp:nth-child(1)",
-      "key": "foto_motorista",
+      "key": "foto_motorista_cavalo",
       "meta": {
         "role": null,
         "networkTriggered": true,
