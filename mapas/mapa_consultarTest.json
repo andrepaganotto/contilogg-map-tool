@@ -1,6 +1,6 @@
 {
   "operacao": "consultar",
-  "categoria": "motorista",
+  "categoria": "test",
   "login": {
     "username": "[name=\"formCad:nome\"]",
     "password": "[name=\"formCad:senha\"]",
@@ -12,8 +12,8 @@
       "selector": "#formMenu\\:j_idt126_label",
       "meta": {
         "role": null,
-        "text": "Cadastros",
-        "networkTriggered": true
+        "networkTriggered": true,
+        "text": "Cadastros"
       }
     },
     {
@@ -21,8 +21,8 @@
       "selector": "#formMenu\\:j_idt137",
       "meta": {
         "role": null,
-        "text": "Motoristas",
-        "networkTriggered": false
+        "networkTriggered": false,
+        "text": "Motoristas"
       }
     },
     {
@@ -30,8 +30,8 @@
       "selector": "#formMenu\\:j_idt138",
       "meta": {
         "role": null,
-        "text": "Motoristas",
-        "networkTriggered": false
+        "networkTriggered": false,
+        "text": "Motoristas"
       }
     },
     {
@@ -39,18 +39,18 @@
       "selector": "[name=\"formmotoristaFil:MotoristaFil_cpf\"]",
       "meta": {
         "role": null,
-        "text": null,
-        "networkTriggered": true
+        "networkTriggered": true,
+        "text": null
       }
     },
     {
       "action": "fill",
       "selector": "[name=\"formmotoristaFil:MotoristaFil_cpf\"]",
-      "key": "formmotoristafil:motoristafil_cpf",
+      "key": "cpf",
       "meta": {
         "role": null,
-        "text": null,
-        "networkTriggered": false
+        "networkTriggered": false,
+        "text": null
       }
     },
     {
@@ -58,17 +58,17 @@
       "selector": "[name=\"formmotoristaFil:filtrarmotoristaFil\"]",
       "meta": {
         "role": null,
-        "text": null,
-        "networkTriggered": false
+        "networkTriggered": false,
+        "text": null
       }
     },
     {
       "action": "click",
-      "selector": "#formmotoristaFil\\:table\\:0\\:descricao > a:nth-child(1)",
+      "selector": "#tabMD0\\:content > [name=\"formmotorista\"]",
       "meta": {
         "role": null,
-        "text": "CLAUDIO ROBERTO CONTI FILHO",
         "networkTriggered": true,
+        "text": "new RichFaces.ui.HotKey(\"formmotorista:keylistmotorista\",  {\"enabledInInput\":true,\"key\":\"ctrl+l\",\"onkeydown\":function(ev",
         "resultSelector": true
       }
     }

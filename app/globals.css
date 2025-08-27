@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* Small extras carried from your old CSS */
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.json-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+}
+
+/* Page chrome */
+:root {
+  color-scheme: dark;
+}
