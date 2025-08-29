@@ -21,7 +21,6 @@ function Card({ children, className = '' }) {
 export default function Home() {
   // form state
   const [url, setUrl] = useState('');
-  const [operacao, setOperacao] = useState('consultar');
   const [nomeArquivo, setNomeArquivo] = useState('');
 
   // app state
@@ -30,6 +29,9 @@ export default function Home() {
   const [maps, setMaps] = useState([]);
   const [selectedMap, setSelectedMap] = useState(null);
   const [selectedMapName, setSelectedMapName] = useState(null);
+  const [stepsDraft, setStepsDraft] = useState([]);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [draggingIndex, setDraggingIndex] = useState(null);
 
   // local JSON (data file) used just for showing keys & easy remap
   const [dataJson, setDataJson] = useState(null);
@@ -51,6 +53,9 @@ export default function Home() {
   }
 
   async function openMap(name) {
+    setStepsDraft([]);
+    setDragOverIndex(null);
+    setDraggingIndex(null);
     setSelectedMap(null);
     setSelectedMapName(null);
     setDataJson(null);
@@ -60,12 +65,15 @@ export default function Home() {
       const r = await fetch(`/api/mapas/${encodeURIComponent(name)}`);
       if (!r.ok) throw new Error('Falha ao carregar mapa');
       const m = await r.json();
+
       setSelectedMap(m);
       setSelectedMapName(name);
+      setStepsDraft(Array.isArray(m.steps) ? m.steps : []);
     } catch (e) {
       setStatus(`Erro ao abrir mapa: ${e.message}`);
     }
   }
+
 
   async function onStart(e) {
     e.preventDefault();
@@ -80,7 +88,7 @@ export default function Home() {
       const resp = await fetch('/api/mapear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, nomeArquivo, operacao, categoria: nomeArquivo }),
+        body: JSON.stringify({ url, nomeArquivo }),
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json.erro || 'Falha ao iniciar');
@@ -122,19 +130,14 @@ export default function Home() {
   }
 
   async function onSaveKeys() {
-    if (!selectedMapName || !selectedMap) return;
+    if (!selectedMapName) return;
 
-    // collect mapping (oldKey -> newKey) from table inputs
-    const rows = document.querySelectorAll('[data-key-row="1"]');
-    const mapping = {};
-    rows.forEach(row => {
-      const from = row.getAttribute('data-from') || '';
-      const inp = row.querySelector('input[type="text"]');
-      const to = inp?.value || '';
-      if (from && to && from !== to) mapping[from] = to;
-    });
+    // Compare original vs draft to detect any change (order, deletions, key edits, etc.)
+    const originalSteps = Array.isArray(selectedMap?.steps) ? selectedMap.steps : [];
+    const draftSteps = Array.isArray(stepsDraft) ? stepsDraft : [];
+    const changed = JSON.stringify(originalSteps) !== JSON.stringify(draftSteps);
 
-    if (!Object.keys(mapping).length) {
+    if (!changed) {
       setStatus('Nenhuma alteração detectada.');
       return;
     }
@@ -142,15 +145,20 @@ export default function Home() {
     setBusy(true);
     setStatus('Salvando…');
     try {
+      // Optional: compute a mapping for legacy logic (not required because we send full steps)
+      // You can leave it empty—server will replace steps entirely.
+      const mapping = {};
+
       const r = await fetch(`/api/mapas/${encodeURIComponent(selectedMapName)}/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mapping }),
+        body: JSON.stringify({ steps: draftSteps, mapping }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.erro || 'Falha ao salvar');
+
       setStatus('Salvo com sucesso.');
-      await openMap(selectedMapName); // refresh
+      await openMap(selectedMapName); // refresh view from disk
     } catch (e) {
       setStatus('Erro ao salvar: ' + e.message);
     } finally {
@@ -158,17 +166,56 @@ export default function Home() {
     }
   }
 
+
+  // --- Drag n Drop + Delete for steps + inline key editing ---
+  const dragIndexRef = useRef(null);
+
+  function onDragStartStep(index) {
+    dragIndexRef.current = index;
+    setDraggingIndex(index);
+  }
+
+  function onDragOverStep(e, index) {
+    e.preventDefault(); // allow drop
+    if (dragOverIndex !== index) setDragOverIndex(index);
+  }
+
+  function onDropStep(targetIndex) {
+    const from = dragIndexRef.current;
+    if (from === null) return;
+    setDragOverIndex(null);
+    setDraggingIndex(null);
+    if (from === targetIndex) return;
+
+    setStepsDraft(prev => {
+      const arr = prev.slice();
+      const [moved] = arr.splice(from, 1);
+      arr.splice(targetIndex, 0, moved);
+      return arr;
+    });
+    dragIndexRef.current = null;
+  }
+
+  function onDragEndStep() {
+    setDragOverIndex(null);
+    setDraggingIndex(null);
+  }
+
+  function onDeleteStep(index) {
+    setStepsDraft(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function onEditStepKey(index, value) {
+    setStepsDraft(prev => {
+      const arr = prev.slice();
+      arr[index] = { ...arr[index], key: value };
+      return arr;
+    });
+  }
+
   useEffect(() => {
     loadMapList();
   }, []);
-
-  // Build rows with editable keys (only steps that have "key")
-  const keyRows = useMemo(() => {
-    const steps = Array.isArray(selectedMap?.steps) ? selectedMap.steps : [];
-    return steps
-      .map((s, idx) => ({ idx, s }))
-      .filter(({ s }) => typeof s?.key === 'string');
-  }, [selectedMap]);
 
   return (
     <main className="mx-auto max-w-7xl p-6 md:p-10">
@@ -207,21 +254,6 @@ export default function Home() {
                   onChange={e => setUrl(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 outline-none ring-0 focus:border-zinc-700"
                 />
-              </div>
-
-              <div className="md:col-span-3">
-                <Label htmlFor="operacao">Operação</Label>
-                <select
-                  id="operacao"
-                  value={operacao}
-                  onChange={e => setOperacao(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 outline-none focus:border-zinc-700"
-                >
-                  <option value="consultar">Consultar</option>
-                  <option value="cadastrar">Cadastrar</option>
-                  <option value="baixar">Baixar</option>
-                  <option value="editar">Editar</option>
-                </select>
               </div>
 
               <div className="md:col-span-4">
@@ -305,12 +337,6 @@ export default function Home() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-semibold mono">{selectedMapName}</h3>
-                    <div className="text-sm text-zinc-400">
-                      Operação:{' '}
-                      <span className="inline-flex items-center rounded-md border border-cyan-700/40 bg-cyan-900/20 px-2 py-0.5 text-cyan-300">
-                        {selectedMap?.operacao || '(não definido)'}
-                      </span>
-                    </div>
                   </div>
                   <button
                     className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
@@ -318,12 +344,16 @@ export default function Home() {
                       setSelectedMap(null);
                       setSelectedMapName(null);
                       setDataJson(null);
+                      setStepsDraft([]);
+                      setDragOverIndex(null);
+                      setDraggingIndex(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                   >
                     Fechar painel
                   </button>
                 </div>
+
 
                 {/* Upload JSON of data to assist mapping */}
                 <div className="mb-4">
@@ -350,73 +380,109 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Editable keys table */}
-                {keyRows.length === 0 ? (
-                  <div className="text-zinc-400 text-sm">Este mapa não possui steps com <code>key</code>.</div>
-                ) : (
-                  <>
-                    <h4 className="mb-2 text-sm font-semibold text-zinc-300">
-                      Steps com <code>key</code> no mapa
-                    </h4>
-                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                      <table className="w-full text-sm">
-                        <thead className="bg-zinc-900/70 text-zinc-300">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Key no mapa</th>
-                            <th className="px-3 py-2 text-left">Key no mapa (editável)</th>
-                            <th className="px-3 py-2 text-left">Escolher do JSON</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {keyRows.map(({ s }, i) => {
-                            const original = s.key || '';
-                            return (
-                              <tr key={i} data-key-row="1" data-from={original} className="odd:bg-zinc-900/40">
-                                <td className="px-3 py-2 text-zinc-300 mono">{original}</td>
-                                <td className="px-3 py-2">
-                                  <input
-                                    type="text"
-                                    defaultValue={original}
-                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900/70 px-2 py-1"
-                                  />
-                                </td>
-                                <td className="px-3 py-2">
-                                  {dataKeys.length ? (
-                                    <select
-                                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/70 px-2 py-1"
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        const input = e.currentTarget.closest('tr')?.querySelector('input[type="text"]');
-                                        if (val && input) input.value = val;
-                                      }}
-                                    >
-                                      <option value="">(manter/editar manualmente)</option>
-                                      {dataKeys.map(k => (
-                                        <option key={k} value={k}>{k}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="text-zinc-500">—</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                {/* Editor de steps + salvar */}
+                <>
+                  {/* Steps list (reorder + delete + inline key editing) */}
+                  <div className="mb-6">
+                    <h4 className="mb-2 text-sm font-semibold text-zinc-300">Steps</h4>
+                    {(!stepsDraft || stepsDraft.length === 0) ? (
+                      <div className="text-zinc-400 text-sm">Este mapa não possui steps.</div>
+                    ) : (
+                      <ul className="space-y-2">
+                        {stepsDraft.map((st, idx) => (
+                          <li
+                            key={idx}
+                            draggable
+                            onDragStart={() => onDragStartStep(idx)}
+                            onDragOver={(e) => onDragOverStep(e, idx)}
+                            onDrop={() => onDropStep(idx)}
+                            onDragEnd={onDragEndStep}
+                            className={[
+                              "rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2",
+                              "transition-transform duration-150 ease-out",
+                              draggingIndex === idx ? "opacity-80 scale-[0.99] cursor-grabbing" : "cursor-grab",
+                            ].join(" ")}
+                          >
+                            {/* animated spacer to "open space" when dragging over this item */}
+                            <div
+                              aria-hidden
+                              className="overflow-hidden"
+                              style={{ height: dragOverIndex === idx ? 12 : 0, transition: 'height 150ms' }}
+                            />
 
-                    <div className="mt-3 flex items-center gap-3">
-                      <button
-                        onClick={onSaveKeys}
-                        disabled={busy}
-                        className="rounded-xl bg-cyan-500/90 px-4 py-2 font-medium text-cyan-950 hover:bg-cyan-400 disabled:opacity-50"
-                      >
-                        Salvar alterações no mapa
-                      </button>
-                    </div>
-                  </>
-                )}
+                            {/* row content */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-zinc-200 text-sm mono truncate">
+                                  {st?.action || '(sem ação)'}
+                                  <span className="text-zinc-500"> · </span>
+                                  <span className="text-zinc-400">{st?.selector || '(sem seletor)'}</span>
+                                </div>
+
+                                {/* inline key editor (only when key exists) */}
+                                {typeof st?.key === 'string' && (
+                                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <input
+                                      type="text"
+                                      value={st.key}
+                                      onChange={(e) => onEditStepKey(idx, e.target.value)}
+                                      className="w-full rounded-lg border border-zinc-800 bg-zinc-900/70 px-2 py-1 text-sm"
+                                      placeholder="key"
+                                    />
+                                    {dataKeys.length ? (
+                                      <select
+                                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900/70 px-2 py-1 text-sm"
+                                        onChange={(e) => onEditStepKey(idx, e.target.value)}
+                                        value={st.key}
+                                      >
+                                        <option value={st.key || ''}>(manter/editar manualmente)</option>
+                                        {dataKeys.map(k => (
+                                          <option key={k} value={k}>{k}</option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <div className="text-xs text-zinc-500 self-center">(sem JSON de dados carregado)</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-zinc-500">#{idx + 1}</span>
+                                <button
+                                  onClick={() => onDeleteStep(idx)}
+                                  className="rounded-md border border-red-600/40 bg-red-900/30 px-2 py-1 text-xs text-red-300 hover:bg-red-900/50"
+                                  type="button"
+                                  title="Remover step"
+                                >
+                                  Remover
+                                </button>
+                                <span
+                                  className="select-none text-zinc-500"
+                                  title="Arraste para reordenar"
+                                  aria-hidden
+                                >
+                                  ⠿
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      onClick={onSaveKeys}
+                      disabled={busy}
+                      className="rounded-xl bg-cyan-500/90 px-4 py-2 font-medium text-cyan-950 hover:bg-cyan-400 disabled:opacity-50"
+                    >
+                      Salvar alterações no mapa
+                    </button>
+                  </div>
+                </>
+
               </>
             )}
           </div>

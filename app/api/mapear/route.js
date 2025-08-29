@@ -15,42 +15,29 @@ async function getMapear() {
     return globalThis.__MAPEAR_SINGLETON__;
 }
 
-// POST /api/mapear  → start
+// POST /api/mapear  → start (no operacao/categoria anymore)
 export async function POST(req) {
     try {
         const body = await req.json().catch(() => ({}));
-        const { url, nomeArquivo, operacao, categoria } = body || {};
+        const { url, nomeArquivo } = body || {};
 
-        if (!url || !nomeArquivo || !operacao) {
+        if (!url || !nomeArquivo) {
             return NextResponse.json(
-                { erro: 'Parâmetros insuficientes: envie url, nomeArquivo e operacao.' },
+                { erro: 'Parâmetros insuficientes: envie url e nomeArquivo.' },
                 { status: 400 }
             );
         }
-
-        const op = String(operacao).toLowerCase();
-        if (!['consultar', 'cadastrar', 'baixar', 'editar'].includes(op)) {
-            return NextResponse.json(
-                { erro: 'Valor de "operacao" inválido. Use consultar | cadastrar | baixar | editar.' },
-                { status: 400 }
-            );
-        }
-
-        const cat = (categoria && String(categoria).trim())
-            ? String(categoria).trim()
-            : String(nomeArquivo).trim();
 
         ensureMapDir();
-        const outName = buildOutputName(op, cat);
+        const outName = buildOutputName(nomeArquivo);
         const outPath = path.join(MAP_DIR, outName);
 
         const mapear = await getMapear();
-        await mapear.start(url, outPath, op, cat); // calls your original file
+        await mapear.start(url, outPath); // ← only (url, outputFile)
+
         return NextResponse.json({
             mensagem: 'Mapeamento iniciado. Use /api/stop para finalizar.',
-            arquivo: outName,
-            operacao: op,
-            categoria: cat,
+            arquivo: outName
         });
     } catch (e) {
         return NextResponse.json({ erro: e.message }, { status: 500 });

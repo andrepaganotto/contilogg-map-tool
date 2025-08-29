@@ -9,9 +9,7 @@ let page = null;
 let output = '';
 let interactions = [];
 let ajaxCount = 0;
-let lastAjaxUrl = null;          // armazena URL do último XHR/FETCH
-let mapOperacao = null;       // "consultar" | "cadastrar" | "baixar" | "editar"
-let mapCategoria = null;      // nome do mapa (categoria)
+let lastAjaxUrl = null;           // armazena URL do último XHR/FETCH
 let recentDownloads = new Map();  // selector -> timestamp do último "download" registrado
 
 /* =================================================================== */
@@ -23,15 +21,13 @@ let recentDownloads = new Map();  // selector -> timestamp do último "download"
  * @param {string} url          URL a ser mapeada
  * @param {string} outputFile   Caminho do arquivo .json de saída
  */
-async function start(url, outputFile = 'mapa.json', operacao = null, categoria = null) {
+async function start(url, outputFile = 'mapa.json') {
     if (browser) throw new Error('Mapeamento já em execução');
 
     output = outputFile;
     interactions = [];
     recentDownloads = new Map();
     ajaxCount = 0;
-    mapOperacao = operacao || null;
-    mapCategoria = categoria || null;
 
     /* === FLAGS herdadas do mapear_old.js === */
     const SAVE_ONLY_UNIQUE_VISIBLE = true;
@@ -478,15 +474,7 @@ async function stop() {
     // Descobrir o selector de logout: assume-se que o último clique é o "Sair"
     let logoutSelector = steps.pop().selector;
 
-    // Se for mapa de consulta, marque o último step como âncora de verificação de resultado
-    if (mapOperacao === 'consultar' && steps.length > 0) {
-        const last = steps[steps.length - 1];
-        last.meta = { ...(last.meta || {}), resultSelector: true };
-    }
-
     const finalMap = {
-        operacao: mapOperacao || null,
-        categoria: mapCategoria || null,
         login: (login.username && login.password && login.submit) ? login : {},
         steps,
         logout: logoutSelector || null
@@ -499,8 +487,6 @@ async function stop() {
     browser = context = page = null;
     interactions = [];
     output = '';
-    mapOperacao = null;
-    mapCategoria = null;
 }
 
 /* =========================  EXPORTA DUAS FUNÇÕES  ========================= */
