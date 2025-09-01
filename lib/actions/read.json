@@ -1,0 +1,8 @@
+{
+    "name": "read",
+    "fields": [
+        "description",
+        "selector",
+        "field"
+    ]
+}

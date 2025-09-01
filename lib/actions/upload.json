@@ -1,0 +1,8 @@
+{
+    "name": "upload",
+    "fields": [
+        "description",
+        "selector",
+        "field"
+    ]
+}

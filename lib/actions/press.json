@@ -1,0 +1,7 @@
+{
+    "name": "press",
+    "fields": [
+        "description",
+        "key"
+    ]
+}
