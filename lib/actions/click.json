@@ -1,7 +1,6 @@
 {
     "name": "click",
     "fields": [
-        "description",
         "selector"
     ]
 }

@@ -1,7 +1,6 @@
 {
     "name": "download",
     "fields": [
-        "description",
         "selector",
         "field"
     ]

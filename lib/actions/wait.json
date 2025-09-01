@@ -1,7 +1,6 @@
 {
     "name": "wait",
     "fields": [
-        "description",
         "time"
     ]
 }

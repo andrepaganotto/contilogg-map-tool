@@ -11,8 +11,24 @@ let interactions = [];
 let ajaxCount = 0;
 let lastAjaxUrl = null;           // armazena URL do último XHR/FETCH
 let recentDownloads = new Map();  // selector -> timestamp do último "download" registrado
+let stopping = false; // evita chamadas concorrentes/recursivas de stop()
 
 /* =================================================================== */
+
+async function tryStopFromSignal(reason = 'external') {
+    // Evita reentrância (ex.: 'disconnected' disparando enquanto já estamos parando)
+    if (!browser || stopping) return;
+    stopping = true;
+    try {
+        console.log(`🧹 Encerrando mapeamento por sinal: ${reason}`);
+        await stop();
+    } catch (e) {
+        // Ignora erro de corrida (ex.: "Nenhum mapeamento em andamento")
+        console.error('Erro ao encerrar por sinal:', e.message || e);
+    } finally {
+        stopping = false;
+    }
+}
 
 /**
  * Inicia o navegador, injeta o código que captura interações
@@ -38,6 +54,17 @@ async function start(url, outputFile = 'mapa.json') {
     browser = await chromium.launch({ headless: false, slowMo: 300 });
     context = await browser.newContext();
     page = await context.newPage();
+
+    // Se o usuário fechar a janela do navegador inteiro → finalize como se tivesse clicado "Parar"
+    browser.on('disconnected', () => {
+        tryStopFromSignal('browser-disconnected');
+    });
+
+    // Se o usuário fechar a aba principal → finalize também
+    const mainPage = page;
+    mainPage.on('close', () => {
+        tryStopFromSignal('main-page-closed');
+    });
 
     function pushDownloadOnce(selector) {
         const key = selector || '__null__';
@@ -398,92 +425,116 @@ async function stop() {
 
     for (const it of interactions) {
         if (!it.selector || loginSel.has(it.selector)) continue;
-        const tag = it.tagName || ''; const attrs = it.attrs || {};
+
+        const tag = it.tagName || '';
+        const attrs = it.attrs || {};
         let act = null;
 
-        if (it.action === 'download')
-            act = 'download'; else if (it.action === 'click')
+        if (it.action === 'download') {
+            act = 'download';
+        } else if (it.action === 'click') {
             // Se for click num input[type=file] consideramos “upload”
-            if (tag === 'input' && attrs.type === 'file')
-                act = 'upload';
-            else
-                act = 'click';
-        else if ((tag === 'input' || tag === 'textarea') && (it.action === 'input' || it.action === 'change'))
-            act = attrs.type === 'file' ? 'upload' : 'fill';
-        else if (tag === 'select' && it.action === 'change')
+            if (tag === 'input' && (attrs.type || '').toLowerCase() === 'file') act = 'upload';
+            else act = 'click';
+        } else if ((tag === 'input' || tag === 'textarea') && (it.action === 'input' || it.action === 'change')) {
+            act = (attrs.type || '').toLowerCase() === 'file' ? 'upload' : 'fill';
+        } else if (tag === 'select' && it.action === 'change') {
             act = 'select';
-        else if (it.action === 'press' && it.meta?.key?.toLowerCase() === 'enter')
+        } else if (it.action === 'press' && (it.meta?.key || '').toLowerCase() === 'enter') {
+            // (continua só mapeando Enter automático; outras teclas são adicionadas via UI)
             act = 'press';
+        }
 
         if (!act) continue;
 
+        const keyAttr = (attrs.name || attrs.placeholder || attrs.id || '')
+            .toLowerCase()
+            .replace(/\s+/g, '');
 
-        const keyAttr = (attrs.name || attrs.placeholder || attrs.id || '').toLowerCase().replace(/\s+/g, '');
-        const k = `${act}::${it.selector}`; if (seen.has(k)) continue; seen.add(k);
+        const dedupKey = `${act}::${it.selector}`;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
 
-        // meta: começa pelos metadados originais da interação (ex.: fromPdfViewer, suggestedFilename)
-        const meta = {
-            ...(it.meta || {}),
-            role: attrs.role || null,
-            networkTriggered: it.network === true,
-            ...(act === 'press' ? { key: 'Enter' } : {})
-        };
-
-        if (act === 'upload' && meta.uploadDir == null) meta.uploadDir = null;
+        // Se for download, gravar step simples e pular o clique que o disparou
         if (act === 'download') {
             steps.push({
                 action: 'download',
                 selector: it.selector
-                // nada além disso: sem key, sem url, sem meta
             });
-            continue; // segue para o próximo item
-        }
-        // Se este clique apenas inicia um download (mesmo selector),
-        // não salve o step de "click" — o mapa deve ter só o "download".
-        if (act === 'click' && downloadSelectors.has(it.selector)) {
             continue;
         }
-        // ✅ NOVO: para <select>, gerar meta.options a partir do que foi capturado
+
+        // Se o clique resultou somente em download, não gravar o clique
+        if (act === 'click' && downloadSelectors.has(it.selector)) continue;
+
+        // ---- raiz dos campos novos (sem meta) ----
+        const networkTriggered = it.network === true;
+
+        // options (somente para select)
+        let options;
         if (act === 'select') {
             if (Array.isArray(it.attrs?.options) && it.attrs.options.length) {
-                meta.options = it.attrs.options;
+                options = it.attrs.options;
             } else if (attrs.text) {
-                // fallback (se por algum motivo não vier o attrs.options)
-                meta.options = String(attrs.text)
+                options = String(attrs.text)
                     .split(/\n|\t/)
                     .map(s => s.trim())
                     .filter(Boolean);
             }
-        } else {
-            // Para steps que NÃO são select, manter meta.text como antes
-            meta.text = attrs.text || null;
         }
 
-        // expectedUrl (sem query) se houver
-        if (it.meta?.reqUrl) meta.expectedUrl = it.meta.reqUrl.split('?')[0];
-
-        steps.push({
+        // montar step final no novo formato
+        const step = {
             action: act,
-            selector: it.selector,
-            ...(act === 'fill' || act === 'upload' || act === 'select' ? { key: keyAttr } : {}),
-            ...(act === 'download' && it.url ? { url: it.url } : {}),
-            meta
-        });
+            selector: it.selector
+        };
+
+        // “field” (antigo “key”) nos steps de fill/upload/select
+        if (act === 'fill' || act === 'upload' || act === 'select') {
+            step.field = keyAttr || undefined;
+        }
+
+        // “key” (tecla) somente para press
+        if (act === 'press') {
+            step.key = it.meta?.key || 'Enter';
+        }
+
+        // url (se houver) apenas em download (já tratado acima),
+        // portanto não adicionamos aqui.
+
+        // sinal de rede na raiz
+        if (networkTriggered === true) {
+            step.networkTriggered = true;
+        }
+
+        // opções na raiz (apenas select)
+        if (act === 'select' && Array.isArray(options) && options.length) {
+            step.options = options;
+        }
+
+        steps.push(step);
     }
 
     // Descobrir o selector de logout: assume-se que o último clique é o "Sair"
-    let logoutSelector = steps.pop().selector;
+    let logoutSelector = (steps.length > 0 && steps[steps.length - 1]?.selector) || null;
+    // Se houver logout, remove-o de steps e utiliza como campo separado
+    if (logoutSelector) steps.pop();
 
     const finalMap = {
         login: (login.username && login.password && login.submit) ? login : {},
-        steps,
-        logout: logoutSelector || null
+        logout: logoutSelector || null,
+        steps
     };
 
     fs.writeFileSync(output, JSON.stringify(finalMap, null, 2));
     console.log(`✅ ${steps.length} passos salvos em ${output}`);
 
-    await browser.close();
+    try {
+        if (browser && typeof browser.isConnected === 'function' && browser.isConnected()) {
+            await browser.close();
+        }
+    } catch { /* navegador já desconectado/fechado */ }
+
     browser = context = page = null;
     interactions = [];
     output = '';

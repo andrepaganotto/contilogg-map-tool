@@ -1,7 +1,6 @@
 {
     "name": "select",
     "fields": [
-        "description",
         "selector",
         "field"
     ]

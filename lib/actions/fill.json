@@ -1,7 +1,6 @@
 {
     "name": "fill",
     "fields": [
-        "description",
         "selector",
         "field"
     ]

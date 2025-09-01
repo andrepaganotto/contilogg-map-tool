@@ -87,6 +87,27 @@ export default function StepsList({ stepsDraft, setStepsDraft }) {
         return next;
     }
 
+    // Capture and format keyboard shortcuts, e.g. "Ctrl+Shift+K" or "Enter"
+    function formatKeyFromEvent(e) {
+        const mods = [];
+        if (e.ctrlKey) mods.push('Ctrl');
+        if (e.altKey) mods.push('Alt');
+        if (e.shiftKey) mods.push('Shift');
+        if (e.metaKey) mods.push('Meta');
+
+        let k = e.key;
+
+        // Normalize some common keys
+        if (k === ' ') k = 'Space';
+        if (k && k.length === 1) k = k.toUpperCase();
+
+        // If only a modifier is pressed (no base key), ignore (wait for a real key)
+        const onlyModifier = ['Control', 'Shift', 'Alt', 'Meta'].includes(k);
+        if (onlyModifier) return null;
+
+        return [...mods, k].join('+');
+    }
+
     return (!stepsDraft || stepsDraft.length === 0) ? (
         <div className="text-zinc-400 text-sm">Este mapa não possui steps.</div>
     ) : (
@@ -114,6 +135,7 @@ export default function StepsList({ stepsDraft, setStepsDraft }) {
                                         <div className="flex items-center gap-3 text-sm">
                                             <button
                                                 type="button"
+                                                onPointerDown={(e) => e.stopPropagation()}
                                                 onClick={() => setOpenActionIdx(openActionIdx === idx ? null : idx)}
                                                 className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 ${classes}`}
                                             >
@@ -188,7 +210,7 @@ export default function StepsList({ stepsDraft, setStepsDraft }) {
                                                                     });
                                                                     setOpenActionIdx(null);
                                                                 }}
-                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs text-zinc-2 00 hover:bg-zinc-800 ${active ? 'bg-zinc-800' : ''}`}
+                                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800 ${active ? 'bg-zinc-800' : ''}`}
                                                             >
                                                                 <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-[2px] ${c}`}>
                                                                     <FontAwesomeIcon icon={ai} className="h-2.5 w-2.5" />
@@ -282,24 +304,56 @@ export default function StepsList({ stepsDraft, setStepsDraft }) {
                                                                             className={inputClass}
                                                                             placeholder={f.placeholder || ''}
                                                                         />
-                                                                    ) : (
-                                                                        <input
-                                                                            autoFocus
-                                                                            onPointerDown={(e) => e.stopPropagation()}
-                                                                            value={value || ''}
-                                                                            onChange={(e) => onChangeLive(e.target.value)}
-                                                                            onBlur={onCancel}
-                                                                            onKeyDown={(e) => {
-                                                                                if (e.key === 'Escape') onEsc();
-                                                                                if (e.key === 'Enter') onCancel();
-                                                                            }}
-                                                                            className={inputClass}
-                                                                            placeholder={f.placeholder || ''}
-                                                                        />
-                                                                    )
+                                                                    ) : /* TEXT INPUTS (with special capture mode for press->key) */
+                                                                        st?.action === 'press' && fname === 'key' ? (
+                                                                            // KEY CAPTURE INPUT (readOnly; listens for onKeyDown)
+                                                                            <input
+                                                                                autoFocus
+                                                                                readOnly
+                                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                                                value={value || ''}
+                                                                                onKeyDown={(e) => {
+                                                                                    // prevent text from being typed
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+
+                                                                                    // cancel edit with Esc
+                                                                                    if (e.key === 'Escape') {
+                                                                                        onEsc();
+                                                                                        return;
+                                                                                    }
+
+                                                                                    // capture combo
+                                                                                    const combo = formatKeyFromEvent(e);
+                                                                                    if (!combo) return; // ignore pure modifier press
+
+                                                                                    onChangeLive(combo);     // write to draft immediately
+                                                                                    onCancel();              // close editor
+                                                                                }}
+                                                                                onBlur={onCancel}
+                                                                                className={inputClass}
+                                                                                placeholder="Pressione uma tecla…"
+                                                                            />
+                                                                        ) : (
+                                                                            // DEFAULT TEXT INPUT (all other text fields)
+                                                                            <input
+                                                                                autoFocus
+                                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                                                value={value || ''}
+                                                                                onChange={(e) => onChangeLive(e.target.value)}
+                                                                                onBlur={onCancel}
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Escape') onEsc();
+                                                                                    if (e.key === 'Enter') onCancel();
+                                                                                }}
+                                                                                className={inputClass}
+                                                                                placeholder={f.placeholder || ''}
+                                                                            />
+                                                                        )
                                                                 ) : (
                                                                     <button
                                                                         type="button"
+                                                                        onPointerDown={(e) => e.stopPropagation()}
                                                                         onClick={() => {
                                                                             setEditSnapshot({ idx, field: fname, value });
                                                                             setEditingField({ idx, field: fname });
